@@ -43,8 +43,11 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// support multiple admin emails separated by commas in ADMIN_EMAIL
+const adminEmails = (process.env.ADMIN_EMAIL || "").split(",").map(e => e.trim()).filter(Boolean);
+
 function generateUserHtml(name, tipo) {
-  const adminEmail = process.env.ADMIN_EMAIL || '';
+  const adminLinks = adminEmails.map(e => `<a href="mailto:${e}">${e}</a>`).join(', ');
   return `<!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -134,7 +137,7 @@ function generateUserHtml(name, tipo) {
 
       <p>Atenciosamente,<br/><em>Equipa da Importação com Lucro</em></p>
 
-      <p>Se precisar de assistência, contacte-nos em <a href="mailto:${adminEmail}">Equipa da Importação com Lucro</a>.</p>
+      <p>Se precisar de assistência, contacte-nos em ${adminLinks}.</p>
 
       <footer>Importação com Lucro</footer>
 
@@ -145,7 +148,7 @@ function generateUserHtml(name, tipo) {
 }
 
 function generateAdminHtml(name, email, phone, tipo, fileName) {
-  const adminEmail = process.env.ADMIN_EMAIL || '';
+  const adminLinks = adminEmails.map(e => `<a href="mailto:${e}">${e}</a>`).join(', ');
   return `<!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -234,10 +237,6 @@ function generateAdminHtml(name, email, phone, tipo, fileName) {
         <h1>Novo Comprovativo Submetido</h1>
       </div>
 
-      <p>
-        Uma nova inscrição foi registada na plataforma. Consulte abaixo os dados enviados pelo participante:
-      </p>
-
       <div class="info-box">
         <div class="info-item">
           <span class="label">Nome:</span> ${name}
@@ -302,7 +301,7 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
 
     await transporter.sendMail({
       from: `"Equipa da Importação com Lucro" <${process.env.EMAIL_USER}>`,
-      to: process.env.ADMIN_EMAIL,
+      to: adminEmails,
       subject: `Novo comprovativo enviado para formação ${tipo_formacao}`,
       text: `Dados do formulário:\nNome: ${name}\nEmail: ${email}\nTelefone: ${phone}\nModalidade: ${tipo_formacao}\nArquivo: ${file.originalname}`,
       html: generateAdminHtml(name, email, phone, tipo_formacao, file.originalname),
