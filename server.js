@@ -17,6 +17,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 mongoose
   .connect(process.env.MONGO_URI || "", {
     useNewUrlParser: true,
@@ -319,6 +323,7 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
       reply_to: supportEmail || undefined,
     });
     console.log("Resend user email result:", userEmailResult);
+    await delay(1000);
 
     try {
       fs.unlinkSync(targetPath);
@@ -337,6 +342,7 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
           reply_to: supportEmail || undefined,
         });
         console.log(`Resend admin email result (${adminEmail}):`, adminEmailResult);
+        await delay(1000);
       }
     }
 
