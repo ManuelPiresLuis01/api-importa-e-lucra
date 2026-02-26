@@ -332,19 +332,16 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
     }
 
     if (adminEmails.length > 0) {
-      for (const adminEmail of adminEmails) {
         const adminEmailResult = await resend.emails.send({
           from: resendFrom,
-          to: adminEmail,
+          to: adminEmails,
           subject: `Novo comprovativo enviado para formação ${tipo_formacao}`,
           text: `Dados do formulário:\nNome: ${name}\nEmail: ${email}\nTelefone: ${phone}\nModalidade: ${tipo_formacao}\nArquivo: ${file.originalname}\nLink: ${fileUrl}`,
           html: generateAdminHtml(name, email, phone, tipo_formacao, file.originalname, fileUrl),
           reply_to: supportEmail || undefined,
         });
         console.log(`Resend admin email result (${adminEmail}):`, adminEmailResult);
-        await delay(1000);
       }
-    }
 
     res.json({ success: true });
   } catch (err) {
