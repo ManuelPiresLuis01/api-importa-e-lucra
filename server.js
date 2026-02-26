@@ -2,7 +2,8 @@ const express = require("express");
 const mongoose = require("mongoose");
 const multer = require("multer");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+const cloudinary = require("cloudinary").v2;
 const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
@@ -28,26 +29,24 @@ const submissionSchema = new mongoose.Schema({
   name: String,
   email: String,
   phone: String,
+  comprovativo: String,
   selectedType: String,
   createdAt: { type: Date, default: Date.now },
 });
 const Submission = mongoose.model("Submission", submissionSchema);
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT || "587", 10),
-  secure: process.env.EMAIL_SECURE === "true",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
+const supportEmail = process.env.SUPPORT_EMAIL || "";
+const resendFrom = process.env.RESEND_FROM || "";
+const resend = new Resend(process.env.RESEND_API_KEY);
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-// support multiple admin emails separated by commas in ADMIN_EMAIL
 const adminEmails = (process.env.ADMIN_EMAIL || "").split(",").map(e => e.trim()).filter(Boolean);
+console.log("ADMIN_EMAIL parsed:", adminEmails);
 
 function generateUserHtml(name, tipo) {
-  const adminLinks = adminEmails.map(e => `<a href="mailto:${e}">${e}</a>`).join(', ');
   return `<!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -137,7 +136,7 @@ function generateUserHtml(name, tipo) {
 
       <p>Atenciosamente,<br/><em>Equipa da Importação com Lucro</em></p>
 
-      <p>Se precisar de assistência, contacte-nos em ${adminLinks}.</p>
+      <p>Se precisar de assistência, contacte-nos em <a href="mailto:${supportEmail}">${supportEmail}</a>.</p>
 
       <footer>Importação com Lucro</footer>
 
@@ -147,8 +146,7 @@ function generateUserHtml(name, tipo) {
 </html>`;
 }
 
-function generateAdminHtml(name, email, phone, tipo, fileName) {
-  const adminLinks = adminEmails.map(e => `<a href="mailto:${e}">${e}</a>`).join(', ');
+function generateAdminHtml(name, email, phone, tipo, fileName, fileUrl) {
   return `<!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -253,12 +251,20 @@ function generateAdminHtml(name, email, phone, tipo, fileName) {
         <div class="info-item">
           <span class="label">Arquivo:</span> ${fileName}
         </div>
+        <div class="info-item">
+          <span class="label">Imagem:</span>
+          <a href="${fileUrl}"><img src="${fileUrl}" alt="Comprovativo" style="max-width: 100%; border-radius: 8px; border: 1px solid #e5e7eb;" /></a>
+        </div>
       </div>
 
       <div class="divider"></div>
 
       <p>
-        O ficheiro correspondente encontra-se anexado a este email para verificação e validação da inscrição.
+        O ficheiro correspondente encontra-se disponível no link abaixo para verificação e validação da inscrição.
+      </p>
+
+      <p>
+        Para qualquer questão de suporte, contacte <a href="mailto:${supportEmail}">${supportEmail}</a>.
       </p>
 
       <footer>
@@ -284,34 +290,49 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
     const targetPath = path.join(uploadDir, file.originalname);
     fs.renameSync(file.path, targetPath);
 
-    const submission = await Submission.create({
+    const uploadResult = await cloudinary.uploader.upload(targetPath, {
+      folder: process.env.CLOUDINARY_FOLDER || "importa-e-lucra",
+      resource_type: "auto",
+    });
+    const fileUrl = uploadResult.secure_url;
+
+    await Submission.create({
       name,
       email,
       phone,
+      comprovativo: fileUrl,
       selectedType: tipo_formacao,
     });
 
-    await transporter.sendMail({
-      from: `"Equipa da Importação com Lucro" <${process.env.EMAIL_USER}>`,
+    const userEmailResult = await resend.emails.send({
+      from: resendFrom,
       to: email,
       subject: "Comprovativo recebido",
       text: `Olá ${name},\n\nRecebemos o seu comprovativo para a modalidade ${tipo_formacao}. Obrigado!`,
       html: generateUserHtml(name, tipo_formacao),
+      reply_to: supportEmail || undefined,
     });
+    console.log("Resend user email result:", userEmailResult);
 
-    await transporter.sendMail({
-      from: `"Equipa da Importação com Lucro" <${process.env.EMAIL_USER}>`,
-      to: adminEmails,
-      subject: `Novo comprovativo enviado para formação ${tipo_formacao}`,
-      text: `Dados do formulário:\nNome: ${name}\nEmail: ${email}\nTelefone: ${phone}\nModalidade: ${tipo_formacao}\nArquivo: ${file.originalname}`,
-      html: generateAdminHtml(name, email, phone, tipo_formacao, file.originalname),
-      attachments: [
-        {
-          filename: file.originalname,
-          path: targetPath,
-        },
-      ],
-    });
+    try {
+      fs.unlinkSync(targetPath);
+    } catch (cleanupErr) {
+      console.error("Failed to remove local upload:", cleanupErr);
+    }
+
+    if (adminEmails.length > 0) {
+      for (const adminEmail of adminEmails) {
+        const adminEmailResult = await resend.emails.send({
+          from: resendFrom,
+          to: adminEmail,
+          subject: `Novo comprovativo enviado para formação ${tipo_formacao}`,
+          text: `Dados do formulário:\nNome: ${name}\nEmail: ${email}\nTelefone: ${phone}\nModalidade: ${tipo_formacao}\nArquivo: ${file.originalname}\nLink: ${fileUrl}`,
+          html: generateAdminHtml(name, email, phone, tipo_formacao, file.originalname, fileUrl),
+          reply_to: supportEmail || undefined,
+        });
+        console.log(`Resend admin email result (${adminEmail}):`, adminEmailResult);
+      }
+    }
 
     res.json({ success: true });
   } catch (err) {
