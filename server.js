@@ -340,7 +340,7 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
           html: generateAdminHtml(name, email, phone, tipo_formacao, file.originalname, fileUrl),
           reply_to: supportEmail || undefined,
         });
-        console.log(`Resend admin email result (${adminEmail}):`, adminEmailResult);
+        console.log(`Resend admin email result (${adminEmails}):`, adminEmailResult);
       }
 
     res.json({ success: true });
