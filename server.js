@@ -279,6 +279,12 @@ function generateAdminHtml(name, email, phone, tipo, fileName, fileUrl) {
 
 const upload = multer({ dest: uploadDir });
 
+
+app.get("/ping", (req, res) => {
+  console.log("Servidor está vivo:", new Date().toISOString());
+  res.send("Servidor está vivo:");
+});
+
 app.post("/api/submit", upload.single("file"), async (req, res) => {
   try {
     const { name, email, phone, tipo_formacao } = req.body;
@@ -342,4 +348,20 @@ app.post("/api/submit", upload.single("file"), async (req, res) => {
 });
 
 const port = process.env.PORT || 5000;
+
+setInterval(async () => {
+  try {
+    const response = await fetch(`https://api-importa-e-lucra.onrender.com/ping`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.text(); 
+    console.log(data);
+  } catch (error) {
+    console.error("Erro ao chamar rota:", error);
+  }
+}, 10 * 60 * 1000); 
+
 app.listen(port, () => console.log(`Backend running on port ${port}`));
