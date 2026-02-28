@@ -44,12 +44,8 @@ A API em Node.js recebe os formulários do frontend, armazena-os no MongoDB e en
    - `MONGO_URI` – string de ligação ao MongoDB.
    - `ADMIN_EMAIL` – email que receberá notificações (pode ser mais de um, separados por vírgula).
    - `SUPPORT_EMAIL` – endereço de suporte que aparecerá nas mensagens (padrão `suporte@mundodaimportacao.com`).
-   - Configuração SMTP (`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`).
-   - **(opcional)** timeouts e utilitários de email:
-     - `EMAIL_CONN_TIMEOUT`, `EMAIL_GREETING_TIMEOUT`, `EMAIL_SOCKET_TIMEOUT` – milissegundos para os vários timeouts (padão 30000).
-     - `EMAIL_POOL` – `true` para habilitar pool de conexões.
-     - `EMAIL_DEBUG` – `true` para activar logging detalhado do Nodemailer.
-
+   - `RESEND_API_KEY` – chave da API do Resend.
+   - `RESEND_FROM` – remetente padrão (ex.: `Equipa da Importacao com Lucro <no-reply@seu-dominio.com>`).
 3. Instale dependências:
    ```sh
    npm install
@@ -87,3 +83,6 @@ Depois de receber a submissão a API:
 2. move o ficheiro para a pasta `uploads/`;
 3. envia um email HTML de confirmação ao utilizador;
 4. envia um email HTML ao `ADMIN_EMAIL` com os dados e o ficheiro em anexo.
+
+
+
